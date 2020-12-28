@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>数据上传</title>
+    <link href="https://cdn.bootcss.com/bootstrap/3.3.7/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body style="padding-top: 70px">
+<script>window.jQuery || document.write('<script src="https://cdn.bootcss.com/jquery/1.12.4/jquery.min.js"><\/script>')</script>
+<script src="https://cdn.bootcss.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+<div class="modal fade" id="upload_window" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button id="upload_window_close_btn" type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+                <h4 class="modal-title">数据上传</h4>
+            </div>
+            <div class="modal-body">
+                <input id="file_select" type="file" />
+                <p id="upload_progress_text"></p>
+                <div class="progress progress-striped active">
+                    <div id="upload_progress_bar" class="progress-bar progress-bar-info" role="progressbar">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="upload_confirm" type="button" class="btn btn-primary">上传</button>
+            </div>
+        </div>
+    </div>
+</div>
+<nav class="navbar navbar-default navbar-fixed-top">
+    <div class="container">
+        <div class="navbar-header">
+            <a class="navbar-brand" href="upload.html">企业应用数据上传模块</a>
+        </div>
+        <div id="navbar" class="navbar-collapse collapse">
+            <ul class="nav navbar-nav">
+                <li class="active"><a href="upload.html">数据上传</a></li>
+                <li class=""><a href="show.html">数据查看</a></li>
+            </ul>
+        </div>
+    </div>
+</nav>
+<div class="container">
+    <div class="jumbotron">
+        <p>
+            <a class="btn btn-lg btn-primary" id="show_upload_window" role="button">上传数据</a>
+        </p>
+        <table class="table table-striped table-bordered">
+            <tbody id="statusTable">
+            </tbody>
+        </table>
+    </div>
+</div>
+<script>
+    let refreshInterval = 200;
+    function refreshStatus() {
+        $.ajax({
+            url: '/ajax/getStatus',
+            type: 'GET',
+            dataType: 'json',
+            success: function (res) {
+                let innerHTML = "<tr><td>文件名</td><td style=\"width: 50%\">进度</td><td>状态</td></tr>"
+                for (id in res) {
+                    let progressbar = "<div class=\"progress\">" +
+                        "<div class=\"progress-bar "+
+                        (res[id].status == "FINISHED" ? "progress-bar-success":"progress-bar-info") +
+                        "\" role=\"progressbar\" style=\"width: "+res[id].progress*100+"%\">" +
+                        "</div>" +
+                        "</div>";
+                    let currentrow = "<tr><td>"+
+                        $('<div/>').text(res[id].filename).html() +
+                        "</td><td>"+progressbar+"</td><td>"+
+                        (res[id].status == "RUNNING" ? "运行中" : res[id].status == "FINISHED" ? "完成" : res[id].status == "PENDING" ? "等待中" : res[id].status)+"</td></tr>";
+                    innerHTML += currentrow;
+                }
+                $('#statusTable').html(innerHTML);
+                setTimeout(refreshStatus,refreshInterval);
+            },
+            error: function () {
+                setTimeout(refreshStatus,refreshInterval);
+            }
+        });
+    }
+    refreshStatus();
+    $('#show_upload_window').on('click',function() {
+        $('#file_select').val('');
+        $('#upload_progress_bar').css('width','0%');
+        $('#upload_progress_text').text('');
+        $('#upload_window').modal('show');
+        $('#upload_progress_bar').attr('class','progress-bar progress-bar-info');
+    });
+    $('#upload_confirm').on('click',function () {
+        $('#upload_progress_bar').attr('class','progress-bar progress-bar-info');
+        let files = $("#file_select")[0].files;
+        if (files.length) {
+            let upload_form = new FormData();
+            upload_form.append("file",files[0]);
+            let time_start = new Date();
+            $.ajax({
+                xhr: function () {
+                    let that = $.ajaxSettings.xhr();
+                    that.upload.addEventListener('progress',function (e) {
+                        let percent = 0;
+                        let position = e.loaded || e.position;
+                        let total = e.total;
+                        if (e.lengthComputable) {
+                            percent = Math.ceil(position / total * 100);
+                        }
+                        let time_past = (new Date() - time_start) / 1000;
+                        $("#upload_progress_bar").css('width',percent + '%');
+                        $("#upload_progress_text").text('已上传'+percent+'%，预计还需'+Math.ceil((total - position) * (time_past / position)) + '秒');
+                    },false);
+                    return that;
+                },
+                url: '/ajax/excelUpload',
+                success: function (data) {
+                    $('#upload_progress_bar').attr('class','progress-bar progress-bar-success');
+                    $("#upload_progress_text").text('上传完成');
+                },
+                error: function () {
+                    $('#upload_progress_bar').attr('class','progress-bar progress-bar-danger');
+                    $("#upload_progress_text").text('上传失败');
+                    alert("上传失败");
+                },
+                type: 'POST',
+                data: upload_form,
+                contentType: false,
+                processData: false
+        });
+        }
+        else alert('请先选择文件');
+    });
+</script>
+</body>
+</html>

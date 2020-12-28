@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>数据查看</title>
+    <link href="https://cdn.bootcss.com/bootstrap/3.3.7/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.bootcdn.net/ajax/libs/bootstrap-table/1.18.1/bootstrap-table.min.css" rel="stylesheet">
+    <style type="text/css">
+td{
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    min-width: 48px;
+    max-width: 96px;
+}
+    </style>
+</head>
+<body style="padding-top: 70px">
+<script>window.jQuery || document.write('<script src="https://cdn.bootcss.com/jquery/1.12.4/jquery.min.js"><\/script>')</script>
+<script src="https://cdn.bootcss.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+<script src="https://cdn.bootcdn.net/ajax/libs/bootstrap-table/1.18.1/bootstrap-table.min.js"></script>
+<nav class="navbar navbar-default navbar-fixed-top">
+    <div class="container">
+        <div class="navbar-header">
+            <a class="navbar-brand" href="upload.html">企业应用数据上传模块</a>
+        </div>
+        <div id="navbar" class="navbar-collapse collapse">
+            <ul class="nav navbar-nav">
+                <li class=""><a href="upload.html">数据上传</a></li>
+                <li class="active"><a href="show.html">数据查看</a></li>
+            </ul>
+        </div>
+    </div>
+</nav>
+<div class="container" style="width: 90%;">
+    <div class="jumbotron" style="overflow: scroll">
+        <ul id="page_number" class="pagination">
+        </ul>
+        <table class="table table-condensed table-bordered table-striped">
+            <thead id="dataTableHead"></thead>
+            <tbody id="dataTable"></tbody>
+        </table>
+    </div>
+</div>
+<script>
+    let page_size = 20;
+    let current_page = 0;
+    let total_page = 0;
+    let keys_name = {};
+    let keys = [];
+    function htmlescape(s) {
+        return $('<div/>').text(s).html();
+    }
+    function refreshTable() {
+        let tableTitle = '';
+        keys.forEach(function (item){
+            tableTitle += '<td>' + htmlescape(item) + '</td>';
+        });
+        $('#dataTableHead').html('<tr>'+tableTitle+'</tr>');
+        $('#dataTable').html('');
+        $.ajax({
+            url: '/ajax/getPage',
+            method: 'GET',
+            dataType: 'json',
+            data: {
+                page: current_page,
+                pagesize: page_size
+            },
+            success: function (data) {
+                data.list.forEach(function (item) {
+                    let tableRow = '';
+                    keys.forEach(function (key) {
+                        let content = item.hasOwnProperty(key)?htmlescape(item[key]):'';
+                        tableRow += '<td><span data-toggle="tooltip" data-placement="left" title="'+content+'">' + content + '</span></td>';
+                    });
+                    $('#dataTable').append('<tr>'+tableRow+'</tr>')
+                });
+                $('span[data-toggle="tooltip"]').tooltip();
+            },
+            error: function (data) {
+                setTimeout(refreshTable,5000);
+            }
+        });
+    }
+    function turnPage(page) {
+        current_page = page;
+        $('#page_number').html('');
+        if (page != 0) $('#page_number').append('<li><a href="javascript:turnPage('+(page-1)+')">&laquo;</a></li>');
+        for (let i=Math.max(0,page-2);i<Math.min(page+3,total_page);i++) {
+            $('#page_number').append('<li'+(i==page?' class="active"':'')+'><a href="javascript:turnPage('+i+')">'+i+'</a></li>');
+        }
+        if (page < total_page - 1) $('#page_number').append('<li><a href="javascript:turnPage('+(page+1)+')">&raquo;</a></li>');
+        refreshTable();
+    }
+    function getKeys() {
+        $.ajax({
+            url: '/ajax/getKeys',
+            method: 'GET',
+            dataType: 'json',
+            success: function (data) {
+                total_page = Math.ceil(data.count / page_size);
+                keys_name = {};
+                keys = [];
+                data.keys.forEach(function (item) {
+                    if (item !== '_id') {
+                        let idx = Object.keys(keys).length;
+                        keys_name[item] = idx;
+                        keys.push(item);
+                    }
+                });
+                turnPage(0);
+            },
+            error: function (data) {
+                setTimeout(getKeys,5000);
+            }
+        })
+    }
+    getKeys();
+</script>
+</body>
+</html>
